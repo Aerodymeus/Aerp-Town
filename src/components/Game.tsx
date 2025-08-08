@@ -1,5 +1,5 @@
 import { Stage, Container, Sprite, Graphics } from '@pixi/react'
-import { type FC, useState, useCallback } from 'react'
+import { type FC, useState, useCallback, useEffect } from 'react'
 import styled from 'styled-components'
 import * as PIXI from 'pixi.js'
 
@@ -20,6 +20,18 @@ const Controls = styled.div`
   z-index: 1000;
 `;
 
+const GameTitle = styled.h1`
+  position: absolute;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  color: white;
+  font-size: 2.5rem;
+  text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
+  z-index: 1000;
+  margin: 0;
+`;
+
 const Button = styled.button`
   padding: 8px 16px;
   margin: 4px;
@@ -38,10 +50,26 @@ const GRID_SIZE = 50; // Größe einer Rasterzelle
 const GRID_COLOR = 0xCCCCCC; // Hellgrau für das Raster
 const GRID_ALPHA = 0.3; // Transparenz des Rasters
 
+interface PreviewPosition {
+  x: number;
+  y: number;
+  isValid: boolean;
+  rotation: number;
+  targetRotation: number;
+}
+
+interface GameObject {
+  x: number;
+  y: number;
+  type: string;
+  rotation: number;
+}
+
 const Game: FC = () => {
-  const [buildings, setBuildings] = useState<Array<{ x: number; y: number; type: string }>>([]);
-  const [roads, setRoads] = useState<Array<{ x: number; y: number }>>([]);
+  const [buildings, setBuildings] = useState<GameObject[]>([]);
+  const [roads, setRoads] = useState<GameObject[]>([]);
   const [currentTool, setCurrentTool] = useState<'building' | 'road'>('building');
+  const [previewPos, setPreviewPos] = useState<PreviewPosition | null>(null);
 
   // Funktion zum Zeichnen des Rasters
   const drawGrid = useCallback((g: PIXI.Graphics) => {
@@ -61,7 +89,63 @@ const Game: FC = () => {
     }
   }, []);
   
-  const handleClick = (e: React.MouseEvent) => {
+  useEffect(() => {
+    const handleKeyPress = (e: KeyboardEvent) => {
+      if (!previewPos) return;
+
+      let newTargetRotation = previewPos.targetRotation;
+      
+      if (e.key.toLowerCase() === 'r') {
+        // Rotation im Uhrzeigersinn (90 Grad)
+        newTargetRotation = (previewPos.targetRotation + 90) % 360;
+      } else if (e.key.toLowerCase() === 'e') {
+        // Rotation gegen den Uhrzeigersinn (90 Grad)
+        newTargetRotation = (previewPos.targetRotation - 90 + 360) % 360;
+      } else {
+        return;
+      }
+
+      setPreviewPos({
+        ...previewPos,
+        targetRotation: newTargetRotation
+      });
+    };
+
+    window.addEventListener('keydown', handleKeyPress);
+    return () => window.removeEventListener('keydown', handleKeyPress);
+  }, [previewPos]);
+
+  // Animation Effect für die Rotation
+  useEffect(() => {
+    if (!previewPos) return;
+
+    const animationStep = () => {
+      setPreviewPos(prev => {
+        if (!prev) return null;
+        
+        const diff = prev.targetRotation - prev.rotation;
+        if (Math.abs(diff) < 1) {
+          return {
+            ...prev,
+            rotation: prev.targetRotation
+          };
+        }
+
+        // Sanfte Animation mit einer Geschwindigkeit von 10% des verbleibenden Wegs
+        const newRotation = prev.rotation + (diff * 0.1);
+        
+        return {
+          ...prev,
+          rotation: newRotation
+        };
+      });
+    };
+
+    const animationId = requestAnimationFrame(animationStep);
+    return () => cancelAnimationFrame(animationId);
+  }, [previewPos]);
+
+  const updatePreviewPosition = (e: React.MouseEvent) => {
     const bounds = e.currentTarget.getBoundingClientRect();
     const rawX = e.clientX - bounds.left;
     const rawY = e.clientY - bounds.top;
@@ -75,12 +159,24 @@ const Game: FC = () => {
       item => Math.abs(item.x - x) < 5 && Math.abs(item.y - y) < 5
     );
 
-    if (!isOccupied) {
-      if (currentTool === 'building') {
-        setBuildings([...buildings, { x, y, type: 'house' }]);
-      } else {
-        setRoads([...roads, { x, y }]);
-      }
+    setPreviewPos(prev => ({
+      x,
+      y,
+      isValid: !isOccupied,
+      rotation: prev?.rotation || 0,
+      targetRotation: prev?.targetRotation || 0
+    }));
+  };
+
+  const handleClick = () => {
+    if (!previewPos || !previewPos.isValid) return;
+    
+    const { x, y, rotation } = previewPos;
+    
+    if (currentTool === 'building') {
+      setBuildings([...buildings, { x, y, type: 'house', rotation }]);
+    } else {
+      setRoads([...roads, { x, y, type: 'road', rotation }]);
     }
   };
 
@@ -91,6 +187,7 @@ const Game: FC = () => {
 
   return (
     <GameContainer>
+      <GameTitle>Aerp Town</GameTitle>
       <Controls>
         <Button onClick={() => setCurrentTool('building')} 
                 style={{ background: currentTool === 'building' ? '#45a049' : '#4CAF50' }}>
@@ -105,7 +202,7 @@ const Game: FC = () => {
         </Button>
       </Controls>
       
-      <Stage 
+            <Stage 
         width={window.innerWidth} 
         height={window.innerHeight} 
         options={{ 
@@ -114,9 +211,11 @@ const Game: FC = () => {
           antialias: true
         }}
         onClick={handleClick}
+        onMouseMove={updatePreviewPosition}
       >
         <Container>
           <Graphics draw={drawGrid} />
+          
           {/* Render buildings */}
           {buildings.map((building, index) => (
             <Sprite
@@ -127,6 +226,7 @@ const Game: FC = () => {
               anchor={0.5}
               width={50}
               height={50}
+              angle={building.rotation}
             />
           ))}
           
@@ -140,8 +240,24 @@ const Game: FC = () => {
               anchor={0.5}
               width={50}
               height={50}
+              angle={road.rotation}
             />
           ))}
+
+          {/* Render preview */}
+          {previewPos && (
+            <Sprite
+              image={currentTool === 'building' ? "/assets/house.svg" : "/assets/road.svg"}
+              x={previewPos.x}
+              y={previewPos.y}
+              anchor={0.5}
+              width={50}
+              height={50}
+              alpha={0.5}
+              angle={previewPos.rotation}
+              tint={previewPos.isValid ? 0x00FF00 : 0xFF0000}
+            />
+          )}
         </Container>
       </Stage>
     </GameContainer>
