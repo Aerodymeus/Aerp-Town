@@ -61,14 +61,17 @@ interface PreviewPosition {
 interface GameObject {
   x: number;
   y: number;
-  type: string;
+  type: 'house' | 'store' | 'factory' | 'road';
   rotation: number;
 }
+
+type BuildingType = 'house' | 'store' | 'factory';
 
 const Game: FC = () => {
   const [buildings, setBuildings] = useState<GameObject[]>([]);
   const [roads, setRoads] = useState<GameObject[]>([]);
   const [currentTool, setCurrentTool] = useState<'building' | 'road'>('building');
+  const [currentBuildingType, setCurrentBuildingType] = useState<BuildingType>('house');
   const [previewPos, setPreviewPos] = useState<PreviewPosition | null>(null);
 
   // Funktion zum Zeichnen des Rasters
@@ -174,7 +177,7 @@ const Game: FC = () => {
     const { x, y, rotation } = previewPos;
     
     if (currentTool === 'building') {
-      setBuildings([...buildings, { x, y, type: 'house', rotation }]);
+      setBuildings([...buildings, { x, y, type: currentBuildingType, rotation }]);
     } else {
       setRoads([...roads, { x, y, type: 'road', rotation }]);
     }
@@ -189,14 +192,37 @@ const Game: FC = () => {
     <GameContainer>
       <GameTitle>Aerp Town</GameTitle>
       <Controls>
-        <Button onClick={() => setCurrentTool('building')} 
-                style={{ background: currentTool === 'building' ? '#45a049' : '#4CAF50' }}>
-          Place Building
-        </Button>
-        <Button onClick={() => setCurrentTool('road')}
-                style={{ background: currentTool === 'road' ? '#45a049' : '#4CAF50' }}>
-          Place Road
-        </Button>
+        <div style={{ marginBottom: '10px' }}>
+          <Button onClick={() => setCurrentTool('building')} 
+                  style={{ background: currentTool === 'building' ? '#45a049' : '#4CAF50' }}>
+            Place Building
+          </Button>
+          <Button onClick={() => setCurrentTool('road')}
+                  style={{ background: currentTool === 'road' ? '#45a049' : '#4CAF50' }}>
+            Place Road
+          </Button>
+        </div>
+        
+        {currentTool === 'building' && (
+          <div style={{ marginBottom: '10px' }}>
+            <Button 
+              onClick={() => setCurrentBuildingType('house')}
+              style={{ background: currentBuildingType === 'house' ? '#3F51B5' : '#5C6BC0' }}>
+              House
+            </Button>
+            <Button 
+              onClick={() => setCurrentBuildingType('store')}
+              style={{ background: currentBuildingType === 'store' ? '#3F51B5' : '#5C6BC0' }}>
+              Store
+            </Button>
+            <Button 
+              onClick={() => setCurrentBuildingType('factory')}
+              style={{ background: currentBuildingType === 'factory' ? '#3F51B5' : '#5C6BC0' }}>
+              Factory
+            </Button>
+          </div>
+        )}
+
         <Button onClick={clearAll} style={{ background: '#f44336' }}>
           Clear All
         </Button>
@@ -220,7 +246,7 @@ const Game: FC = () => {
           {buildings.map((building, index) => (
             <Sprite
               key={index}
-              image="/assets/house.svg"
+              image={`/assets/${building.type}.svg`}
               x={building.x}
               y={building.y}
               anchor={0.5}
