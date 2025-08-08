@@ -47,7 +47,7 @@ const Button = styled.button`
 `;
 
 const GRID_SIZE = 50; // Größe einer Rasterzelle
-const GRID_COLOR = 0xCCCCCC; // Hellgrau für das Raster
+const GRID_COLOR = 0x333333; // grau für das Raster
 const GRID_ALPHA = 0.3; // Transparenz des Rasters
 
 interface PreviewPosition {
